@@ -27,7 +27,6 @@ class DataProcessor(ABC):
     def ingest(self, data: Any) -> None:
         pass
 
-    @staticmethod
     def output(self) -> tuple[int, str]:
         pass
 
@@ -35,26 +34,21 @@ class DataProcessor(ABC):
 class NumericProcessor(DataProcessor):
 
     def validate(self, data: Any) -> bool:
-        try:
-            data == int | float | list[int | float]
-        except Exception:
-            return False
-        return True
-        self.validate_check = 1
+        if isinstance(data, (int, float)):
+            return True
 
-    def ingest(self, data: Any, type: Any, extract_num: int = 1) -> None:
+        if isinstance(data, list):
+            return all(isinstance(x, (int, float)) for x in data)
+
+        return False
+
+    def ingest(self, data: int | float | list[int, float]) -> None:
         try:
-            type == data
+            if not self.validate(data):
+                raise TypeError("Improper numeric data")
         except Exception:
             print("Got exception: Improper numeric data")
             return
-        print(f"Processing data: {data}")
-        print(f"Extracting {extract_num} values...")
-        for i in range(0, extract_num):
-            if i <= len(data):
-                print(f"Numeric value {i}: {data[i]}")
-            else:
-                return
 
     def output(self) -> tuple[int, str]:
         pass
@@ -82,16 +76,23 @@ class NumericProcessor(DataProcessor):
 
 #     def output(self) -> tuple[int, str]:
 #         pass
+#          print(f"Processing data: {data}")
+#        print(f"Extracting {extract_num} values...")
+#       for i in range(0, extract_num):
+#           if i <= len(data):
+#              print(f"Numeric value {i}: {data[i]}")
+#          else:
+#              return
 
 
 def main() -> None:
     print("=== Code Nexus - Data Processor ===\n")
     print("Testing Numeric Processor...")
-    print("Trying to validate input '42': " + NumericProcessor.validate(42))
-    print("Trying to validate input 'Hello': " +
-          NumericProcessor.validate('Hello'))
+    nprocessor = NumericProcessor()
+    print(f"Trying to validate input '42': {nprocessor.validate(42)}")
+    print(f"Trying to validate input 'Hello': {nprocessor.validate('Hello')}")
     print("Test invalid ingestion of string 'foo' without prior validation:")
-    NumericProcessor.ingest('foo', int)
+    nprocessor.ingest("foo")
 
 
 if __name__ == "__main__":
