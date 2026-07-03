@@ -2,16 +2,17 @@
 # ########################################################################### #
 #   shebang: 1                                                                #
 #                                                          :::      ::::::::  #
-#   data_processor.py                                    :+:      :+:    :+:  #
+#   data_stream.py                                       :+:      :+:    :+:  #
 #                                                      +:+ +:+         +:+    #
 #   By: jkrishna <jkrishna@student.42.fr>            +#+  +:+       +#+       #
 #                                                  +#+#+#+#+#+   +#+          #
-#   Created: 2026/07/02 13:20:32 by jkrishna            #+#    #+#            #
-#   Updated: 2026/07/03 12:23:29 by jkrishna           ###   ########.fr      #
+#   Created: 2026/07/03 11:12:34 by jkrishna            #+#    #+#            #
+#   Updated: 2026/07/03 13:50:34 by jkrishna           ###   ########.fr      #
 #                                                                             #
 # ########################################################################### #
 
 
+import typing
 import abc
 from typing import Any
 from abc import ABC
@@ -19,9 +20,20 @@ from abc import ABC
 
 class DataProcessor(ABC):
 
+    name: str = "Data Processor"
+
     def __init__(self) -> None:
         self._storage: list[str] = []
         self._rank: int = 0
+        self._total: int = 0
+
+    def _store(self, value: str) -> None:
+        self._storage.append(value)
+        self._total += 1
+
+    def get_stats(self) -> str:
+        return (f"{self.name}: total {self._total} items processed, "
+                f"remaining {len(self._storage)} on processor")
 
     @abc.abstractmethod
     def validate(self, data: Any) -> bool:
@@ -41,7 +53,38 @@ class DataProcessor(ABC):
         return (rank, value)
 
 
+class DataStream():
+
+    def __init__(self) -> None:
+        self._processors: list[DataProcessor] = []
+
+    def register_processor(self, proc: DataProcessor) -> None:
+        self._processors.append(proc)
+
+    def process_stream(self, stream: list[typing.Any]) -> None:
+        for item in stream:
+            for p in self._processors:
+                if p.validate(item):
+                    p.ingest(item)
+                    break
+            else:
+                print(
+                    "DataStream error - Can't process"
+                    f"element in stream: {item}"
+                )
+
+    def print_processors_stats(self) -> None:
+        print("== DataStream statistics ==")
+        if not self._processors:
+            print("No processor found, no data")
+            return
+        for p in self._processors:
+            print(p.get_stats())
+
+
 class NumericProcessor(DataProcessor):
+
+    name: str = "Numeric Processor"
 
     def validate(self, data: Any) -> bool:
         if isinstance(data, (int, float)):
@@ -61,14 +104,16 @@ class NumericProcessor(DataProcessor):
             return
 
         if isinstance(data, (int, float)):
-            self._storage.append(str(data))
+            self._store(str(data))
 
         if isinstance(data, list):
             for value in data:
-                self._storage.append(str(value))
+                self._store(str(value))
 
 
 class TextProcessor(DataProcessor):
+
+    name: str = "Text Processor"
 
     def validate(self, data: Any) -> bool:
         if isinstance(data, str):
@@ -88,14 +133,16 @@ class TextProcessor(DataProcessor):
             return
 
         if isinstance(data, str):
-            self._storage.append(data)
+            self._store(data)
 
         if isinstance(data, list):
             for value in data:
-                self._storage.append(value)
+                self._store(value)
 
 
 class LogProcessor(DataProcessor):
+
+    name: str = "Log Processor"
 
     def validate(self, data: Any) -> bool:
         if isinstance(data, list):
@@ -119,41 +166,57 @@ class LogProcessor(DataProcessor):
 
         for item in data:
             formatted = f"{item['log_level']}: {item['log_message']}"
-            self._storage.append(formatted)
+            self._store(formatted)
 
 
 def main() -> None:
-    print("=== Code Nexus - Data Processor ===\n")
-    print("Testing Numeric Processor...")
+    print("=== Code Nexus - Data Stream ===\n")
+
+    print("Initialize Data Stream...")
+    ds = DataStream()
+    ds.print_processors_stats()
+
     nprocessor = NumericProcessor()
-    print(f" Trying to validate input '42': {nprocessor.validate(42)}")
-    print(f" Trying to validate input 'Hello': {nprocessor.validate('Hello')}")
-    print(" Test invalid ingestion of string 'foo' without prior validation:")
-    nprocessor.ingest("foo")  # type: ignore
-    nprocessor.ingest([1, 2, 3, 4, 5])
-    print(" Extracting 3 values...")
-    for _ in range(3):
-        result = nprocessor.output()
-        print(f" Numeric value {result[0]}: {result[1]}")
-
-    print("\nTesting Text Processor...")
     tprocessor = TextProcessor()
-    print(f" Trying to validate input '42': {tprocessor.validate(42)}")
-    tprocessor.ingest(['Hello', 'Nexus', 'World'])
-    print(" Extracting 1 values...")
-    result1 = tprocessor.output()
-    print(f" Text value {result1[0]}: {result1[1]}")
-
-    print("\nTesting Log Processor...")
     lprocessor = LogProcessor()
-    print(f" Trying to validate input 'Hello': {lprocessor.validate('Hello')}")
-    lprocessor.ingest(
-        [{'log_level': 'NOTICE', 'log_message': 'Connection to server'},
-         {'log_level': 'ERROR', 'log_message': 'Unauthorized access!!'}])
-    print(" Extracting 2 values...")
+
+    print("\nRegistering Numeric Processors\n")
+    ds.register_processor(nprocessor)
+
+    stream = [
+        'Hello world',
+        [3.14, -1, 2.71],
+        [
+            {'log_level': 'WARNING',
+             'log_message': 'Telnet access! Use ssh instead'},
+            {'log_level': 'INFO',
+             'log_message': 'User wil is connected'}
+        ],
+        42,
+        ['Hi', 'five']
+    ]
+    print(f"Send first batch of data on stream: {stream}")
+    ds.process_stream(stream)
+    ds.print_processors_stats()
+
+    print("\nRegistering other data processors")
+    ds.register_processor(tprocessor)
+    ds.register_processor(lprocessor)
+    print("Send the same batch again")
+    ds.process_stream(stream)
+    ds.print_processors_stats()
+
+    print(
+        "\nConsume some elements from the data processors:"
+        "Numeric 3, Text 2, Log 1"
+    )
+    for _ in range(3):
+        nprocessor.output()
     for _ in range(2):
-        result2 = lprocessor.output()
-        print(f" Log entry {result2[0]}: {result2[1]}")
+        tprocessor.output()
+    for _ in range(1):
+        lprocessor.output()
+    ds.print_processors_stats()
 
 
 if __name__ == "__main__":
